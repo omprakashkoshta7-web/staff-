@@ -1,5 +1,4 @@
 import STAFF_API_CONFIG from '../config/api.config';
-import { auth, isFirebaseConfigured } from '../config/firebase';
 
 interface AuthResponse {
   success: boolean;
@@ -68,10 +67,7 @@ class StaffService {
     includeAuth = true
   ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
-    if (includeAuth && isFirebaseConfigured && auth.currentUser) {
-      this.token = await auth.currentUser.getIdToken();
-      localStorage.setItem('staffToken', this.token);
-    }
+    
     const options: RequestInit = {
       method,
       headers: this.getHeaders(includeAuth),
