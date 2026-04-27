@@ -1,15 +1,15 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import staffService from "../services/staff.service";
+import { logoutFirebase } from "../services/firebase-auth";
 import {
-  clearStoredSession,
-  logoutFirebase,
-  syncStaffAuthSession,
-  type StaffAuthUser,
-  type StaffTeam,
-} from "../services/firebase-auth";
+  getStaffSession,
+  clearStaffSession,
+  subscribeStaffSession,
+  type StaffSession,
+} from "../services/session";
 
-type StaffRole = StaffTeam;
+type StaffRole = "ops" | "support" | "finance" | "marketing";
 
 export interface StaffUser {
   id: string;
@@ -39,75 +39,61 @@ const StaffContext = createContext<StaffContextType>({
   user: null,
   setUser: () => {},
   isAuthenticated: false,
-  isLoading: true,
+  isLoading: false,
   token: null,
   setToken: () => {},
   logout: async () => {},
 });
 
-const mapContextUser = (user: StaffAuthUser): StaffUser => ({
-  id: user.uid,
-  email: user.email,
-  name: user.displayName || user.email,
-  role: user.role,
-  team: user.team,
-  permissions: user.permissions,
-  scopes: user.scopes,
-});
-
 export function StaffProvider({ children }: { children: ReactNode }) {
-  const [role, setRole] = useState<StaffRole>("ops");
-  const [user, setUser] = useState<StaffUser | null>(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [token, setToken] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [session, setSession] = useState<StaffSession | null>(() => getStaffSession());
 
   useEffect(() => {
-    const unsubscribe = syncStaffAuthSession(
-      ({ user: sessionUser, token: sessionToken }) => {
-        const mappedUser = mapContextUser(sessionUser);
-        setUser(mappedUser);
-        setRole(mappedUser.team);
-        setToken(sessionToken);
-        setIsAuthenticated(true);
-        staffService.setToken(sessionToken);
-        setIsLoading(false);
-      },
-      () => {
-        setUser(null);
-        setRole("ops");
-        setToken(null);
-        setIsAuthenticated(false);
-        clearStoredSession();
-        staffService.clearToken();
-        setIsLoading(false);
-      }
-    );
+    setSession(getStaffSession());
 
-    return unsubscribe;
+    return subscribeStaffSession(() => {
+      setSession(getStaffSession());
+    });
   }, []);
 
+  useEffect(() => {
+    if (session?.token) {
+      staffService.setToken(session.token);
+    } else {
+      staffService.clearToken();
+    }
+  }, [session?.token]);
+
   const logout = async () => {
-    setUser(null);
-    setIsAuthenticated(false);
-    setToken(null);
-    setRole("ops");
+    clearStaffSession();
     staffService.clearToken();
-    clearStoredSession();
     await logoutFirebase();
   };
+
+  const isAuthenticated = Boolean(session?.token);
+  const user: StaffUser | null = session
+    ? {
+        id: session.userId,
+        email: session.email,
+        name: session.name,
+        role: session.role,
+        team: session.team,
+        permissions: session.permissions,
+        scopes: session.scopes,
+      }
+    : null;
 
   return (
     <StaffContext.Provider
       value={{
-        role,
-        setRole,
+        role: session?.team || "ops",
+        setRole: () => {},
         user,
-        setUser,
+        setUser: () => {},
         isAuthenticated,
-        isLoading,
-        token,
-        setToken,
+        isLoading: false,
+        token: session?.token || null,
+        setToken: () => {},
         logout,
       }}
     >

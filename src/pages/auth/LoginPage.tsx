@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Mail, Lock, Eye, EyeOff, UserCircle } from "lucide-react";
-import { useStaffRole } from "../../context/StaffContext";
 import { isFirebaseConfigured } from "../../config/firebase";
 import { loginWithFirebase } from "../../services/firebase-auth";
+import { setStaffSession } from "../../services/session";
 
 type Role = "ops" | "support" | "finance" | "marketing";
 
@@ -16,7 +16,6 @@ const roleOptions: { value: Role; label: string; color: string }[] = [
 
 export default function LoginPage() {
   const navigate = useNavigate();
-  const { setRole, setUser, setToken } = useStaffRole();
   const [form, setForm] = useState({ email: "", password: "", role: "ops" as Role });
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -35,16 +34,15 @@ export default function LoginPage() {
     try {
       const authResponse = await loginWithFirebase(form.email, form.password, form.role);
 
-      setToken(authResponse.token);
-      setRole(authResponse.user.team);
-      setUser({
-        id: authResponse.user.uid,
+      setStaffSession({
+        userId: authResponse.user.uid,
         email: authResponse.user.email,
         name: authResponse.user.displayName || authResponse.user.email,
         role: authResponse.user.role,
         team: authResponse.user.team,
         permissions: authResponse.user.permissions,
         scopes: authResponse.user.scopes,
+        token: authResponse.token,
       });
 
       navigate("/dashboard");

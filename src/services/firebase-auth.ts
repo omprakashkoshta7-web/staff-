@@ -1,14 +1,10 @@
 import {
-  onAuthStateChanged,
   signInWithEmailAndPassword,
   signOut,
   type AuthError,
 } from "firebase/auth";
 import { auth, isFirebaseConfigured } from "../config/firebase";
 import STAFF_API_CONFIG from "../config/api.config";
-
-const STAFF_TOKEN_KEY = "staffToken";
-const STAFF_USER_KEY = "staff_user";
 
 export type StaffTeam = "ops" | "support" | "finance" | "marketing";
 
@@ -55,16 +51,6 @@ const mapStaffUser = (user: VerifyUser, fallbackTeam: StaffTeam): StaffAuthUser 
   scopes: user.staffProfile?.scopes || [],
 });
 
-const setStoredSession = (token: string, user: VerifyUser) => {
-  localStorage.setItem(STAFF_TOKEN_KEY, token);
-  localStorage.setItem(STAFF_USER_KEY, JSON.stringify(user));
-};
-
-export const clearStoredSession = () => {
-  localStorage.removeItem(STAFF_TOKEN_KEY);
-  localStorage.removeItem(STAFF_USER_KEY);
-};
-
 const verifyStaffAccess = async (idToken: string): Promise<{ user: VerifyUser; token: string }> => {
   const response = await fetch(`${STAFF_API_CONFIG.BASE_URL}${STAFF_API_CONFIG.ENDPOINTS.AUTH.VERIFY}`, {
     method: "POST",
@@ -106,7 +92,6 @@ export const loginWithFirebase = async (
     const idToken = await userCredential.user.getIdToken();
     const { user, token } = await verifyStaffAccess(idToken);
 
-    setStoredSession(token, user);
     return { user: mapStaffUser(user, fallbackTeam), token };
   } catch (error) {
     const authError = error as AuthError & { message?: string };
@@ -120,35 +105,5 @@ export const loginWithFirebase = async (
 };
 
 export const logoutFirebase = async (): Promise<void> => {
-  try {
-    await signOut(auth);
-  } finally {
-    clearStoredSession();
-  }
+  await signOut(auth);
 };
-
-export const syncStaffAuthSession = (
-  onAuthenticated: (session: { user: StaffAuthUser; token: string }) => void,
-  onUnauthenticated: () => void
-) =>
-  onAuthStateChanged(auth, async (firebaseUser) => {
-    if (!firebaseUser) {
-      clearStoredSession();
-      onUnauthenticated();
-      return;
-    }
-
-    try {
-      const idToken = await firebaseUser.getIdToken();
-      const { user, token } = await verifyStaffAccess(idToken);
-      setStoredSession(token, user);
-      onAuthenticated({
-        user: mapStaffUser(user, user.staffProfile?.team || "ops"),
-        token,
-      });
-    } catch {
-      clearStoredSession();
-      await signOut(auth).catch(() => undefined);
-      onUnauthenticated();
-    }
-  });
