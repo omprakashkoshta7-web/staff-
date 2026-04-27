@@ -1,5 +1,3 @@
-import type { StaffUser } from "../context/StaffContext";
-
 const SESSION_KEY = "staff_session";
 const SESSION_EVENT = "staff:session-changed";
 
